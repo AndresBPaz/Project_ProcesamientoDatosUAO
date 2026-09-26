@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 
-import nucleo as N
+import core as N
 
 st.set_page_config(page_title="PEGASUS - Resumen abstractivo", layout="wide")
 
