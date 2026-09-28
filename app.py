@@ -1,20 +1,40 @@
+import resource
+import sys
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 
+
+# --- diagnostico temporal: cuanta memoria se usa y hasta donde llega el arranque
+# En Linux, ru_maxrss viene en kilobytes.
+def _diag(etapa):
+    mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+    print(f"[diag] {etapa} | RSS maximo {mb:.0f} MB", flush=True)
+    sys.stdout.flush()
+
+
+_diag("1. streamlit importado")
+
 import core as N
+
+_diag("2. core y torch importados")
 
 st.set_page_config(page_title="PEGASUS - Resumen abstractivo", layout="wide")
 
 
 @st.cache_resource(show_spinner="Cargando PEGASUS...")
 def _cargar():
-    return N.cargar()
+    _diag("3. antes de descargar/cargar los pesos")
+    r = N.cargar()
+    _diag("4. modelo cargado en memoria")
+    return r
 
 
 tokenizer, modelo = _cargar()
+_diag("5. app lista")
 cfg = modelo.config
 
 st.title("PEGASUS: resumen abstractivo de documentos")
