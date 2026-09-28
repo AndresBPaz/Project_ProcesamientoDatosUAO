@@ -1,0 +1,38 @@
+{
+  "name": "PEGASUS - Procesamiento de Datos Secuenciales",
+
+  // Imagen oficial de devcontainers. Python 3.12 en vez de 3.14 a proposito:
+  // es la version sobre la que se probaron las dependencias y el calculo de Q/K/V.
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+
+  // 2 nucleos = 8 GB de RAM. PEGASUS necesita un pico de ~3,2 GB al cargar,
+  // asi que sobra. Subir a 4 nucleos gasta el doble de horas incluidas.
+  "hostRequirements": {
+    "cpus": 2,
+    "memory": "8gb",
+    "storage": "32gb"
+  },
+
+  // Se ejecuta al crear el codespace.
+  "onCreateCommand": "pip install --no-cache-dir -r requirements.txt",
+
+  // Descarga el checkpoint (2,2 GB) para que el primer arranque de la app
+  // sea inmediato. Si activas prebuilds, esto queda horneado en la imagen.
+  "updateContentCommand": "python -c \"from transformers import AutoTokenizer, AutoModelForSeq2SeqLM as M; AutoTokenizer.from_pretrained('google/pegasus-cnn_dailymail'); M.from_pretrained('google/pegasus-cnn_dailymail', attn_implementation='eager'); print('checkpoint en cache')\"",
+
+  "postCreateCommand": "echo '\\nListo. Arranca la app con:  bash arrancar.sh\\n'",
+
+  "forwardPorts": [8501],
+  "portsAttributes": {
+    "8501": {
+      "label": "PEGASUS (Streamlit)",
+      "onAutoForward": "notify"
+    }
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python"]
+    }
+  }
+}
