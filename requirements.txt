@@ -1,6 +1,5 @@
---extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.4.0
-transformers==4.49.0
-sentencepiece==0.2.2
 streamlit==1.64.0
-matplotlib==3.11.1
+torch==2.14.0
+transformers==5.17.0
+sentencepiece==0.2.2
+matplotlib==3.11.2

@@ -1,30 +1,113 @@
-name: ETL
-
+name: Validar despliegue
+ 
+# Este pipeline NO despliega: Streamlit Community Cloud no expone una API de
+# despliegue, se actualiza solo con cada push a main. Lo que hace es reproducir
+# el entorno del cloud ANTES de que el cloud lo intente, para que un fallo de
+# dependencias o una regresion en el calculo de Q, K y V se vea aqui, en dos
+# minutos, y no en el log de la app.
+ 
 on:
   push:
-    branches: [ "main", "pruebas_yaml" ]
+    branches: [main]
   pull_request:
-    branches: [ "main" ]
-
+  workflow_dispatch:
+ 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+ 
 jobs:
-  etl-job:
+  # --------------------------------------------------------------------------
+  # 1. ¿requirements.txt se puede instalar en el entorno de Streamlit Cloud?
+  #    El cloud usa Python 3.14 y resuelve primero con uv, luego con pip.
+  #    Este job es el que habria atajado el error "Could not find a version
+  #    that satisfies the requirement torch==2.4.0".
+  # --------------------------------------------------------------------------
+  dependencias:
+    name: Dependencias (Python 3.14, como Streamlit Cloud)
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
-
-      - name: Configurar Python
+      - uses: actions/checkout@v4
+ 
+      - name: Preparar Python 3.14
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
-
-      - name: Instalar dependencias 
-        run: | 
+          python-version: '3.14'
+ 
+      - name: Instalar uv
+        run: python -m pip install --upgrade pip uv
+ 
+      - name: Rechazar el indice de PyTorch
+        # En Streamlit Cloud, uv recibe 403 Forbidden de download.pytorch.org y
+        # ademas se niega a buscar en PyPI una version que no este en el primer
+        # indice. Resultado: el despliegue muere antes de arrancar la app.
+        run: |
+          if grep -qi 'download\.pytorch\.org' requirements.txt; then
+            echo "::error file=requirements.txt::requirements.txt apunta a download.pytorch.org."
+            echo "Streamlit Cloud no puede consultar ese indice (403 Forbidden con uv)."
+            echo "Usa las ruedas de PyPI: 'torch==2.14.0', sin --extra-index-url."
+            exit 1
+          fi
+          echo "OK: requirements.txt solo usa PyPI."
+ 
+      - name: Resolver requirements.txt con uv
+        run: |
+          uv pip compile --python "$(which python)" requirements.txt -o resuelto.txt
+          # Al resumen solo van las dependencias directas; las 80 transitivas
+          # quedan en el log del paso.
+          {
+            echo "### Versiones resueltas para Python 3.14"
+            echo '```'
+            grep -B1 'via -r requirements.txt' resuelto.txt | grep -E '^[a-zA-Z0-9]'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+ 
+      - name: Instalar de verdad e importar
+        # Resolver no basta: una rueda puede resolver y luego no tener binario
+        # para esta version de Python. Instalar e importar lo demuestra.
+        run: |
+          uv venv .venv --python "$(which python)"
+          uv pip install --python .venv/bin/python -r requirements.txt
+          .venv/bin/python - <<'PY'
+          import matplotlib, sentencepiece, streamlit, torch, transformers
+          print("torch       ", torch.__version__)
+          print("transformers", transformers.__version__)
+          print("streamlit   ", streamlit.__version__)
+          PY
+ 
+      - name: Reportar tamano instalado
+        # Solo informativo: sirve para vigilar el limite de recursos del cloud.
+        run: du -sh .venv | tee -a "$GITHUB_STEP_SUMMARY"
+ 
+  # --------------------------------------------------------------------------
+  # 2. ¿El codigo sigue reproduciendo Q, K y V?
+  #    Usa un PEGASUS en miniatura, asi que no descarga los 2,2 GB del
+  #    checkpoint real. Corre contra dos versiones de transformers porque el
+  #    salto de 4.x a 5.x fue lo que rompio la atencion (SDPA vs eager).
+  # --------------------------------------------------------------------------
+  codigo:
+    name: Q/K/V con transformers ${{ matrix.transformers }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        transformers: ['4.49.0', '5.17.0']
+    steps:
+      - uses: actions/checkout@v4
+ 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+ 
+      - name: Instalar dependencias de prueba
+        run: |
           python -m pip install --upgrade pip
-          pip install -e .
-      
-      - name: Ejecutar pipeline transformacion de datos
-        run: python scripts/run_all.py
-
-      
+          python -m pip install "torch==2.14.0" \
+                                "transformers==${{ matrix.transformers }}" \
+                                "sentencepiece==0.2.2"
+ 
+      - name: Comprobar que el codigo compila
+        run: python -m compileall -q core.py app.py tests/
+  
+      - name: Pruebas de humo
+        run: python tests/prueba_humo.py
