@@ -99,7 +99,7 @@ Ejecución local sobre CPU. El checkpoint pesa 2,2 GB y queda en caché tras la 
 **Estructura del código**
 
 ```
-├── nucleo.py           # Carga del modelo, inferencia y cálculo de Q, K y V
+├── core.py           # Carga del modelo, inferencia y cálculo de Q, K y V
 ├── app.py    # Interfaz web 
 └── capturas/
 ```
