@@ -182,13 +182,13 @@ PEGASUS usa **normalización previa**, por lo que el estado que recibe el módul
 ### Capturas
 
 **Figura 1. Entrada y arquitectura**
-![Entrada](capturas/01-entrada.png)
+![Entrada](images/entrada.png)
 
 **Figura 2. Salida, métricas y formas de Q, K y V**
-![Salida](capturas/02-salida-qkv.png)
+![Salida](images/salida-qkv.png)
 
 **Figura 3. Verificación y mapa de atención cruzada**
-![Atención](capturas/03-atencion.png)
+![Atención](images/mapa.png)
 
 ### Análisis
 
